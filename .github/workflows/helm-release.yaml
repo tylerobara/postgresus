@@ -1,0 +1,58 @@
+name: Release Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/helm/**'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: read
+      packages: write
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Extract Chart Version and Set Output
+        id: get_version
+        run: |
+          CHART_VERSION=$(yq '.version' deploy/helm/Chart.yaml)
+          echo "chart_tag=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $CHART_VERSION"
+        shell: bash
+
+      - name: Helm Setup
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.18.5
+
+      - name: Helm Lint and Template Test
+        run: |
+            CHART_PATH=./deploy/helm
+            echo "Running helm lint..."
+            helm lint "$CHART_PATH"
+            echo "Running helm template dry-run..."
+            helm template postgresus "$CHART_PATH" | cat
+            echo "Running helm template with custom values..."
+            helm template postgresus "$CHART_PATH" -f "$CHART_PATH/values.yaml" -f "./deploy/helm-test-values.yaml" | cat
+
+      - name: Chart | Push
+        uses: appany/helm-oci-chart-releaser@v0.5.0
+        with:
+          name: postgresus
+          repository: ${{ github.repository_owner }}
+          tag: ${{ steps.get_version.outputs.chart_tag }}
+          path: deploy/helm
+          registry: ghcr.io
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}
+          update_dependencies: 'true'
