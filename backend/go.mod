@@ -1,6 +1,6 @@
 module postgresus-backend
 
-go 1.23.3
+go 1.23.11
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
